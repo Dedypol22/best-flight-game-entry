@@ -1,0 +1,6 @@
+[
+  { "name": "1-start.jpg", "url": "?shot=start&seed=1", "state": "Title screen, staged at the coastal runway" },
+  { "name": "2-play.jpg", "url": "?shot=play&seed=1", "state": "Chase flight with the next target ring ahead" },
+  { "name": "3-ring.jpg", "url": "?shot=ring&seed=1", "state": "Ring approach with mission progress visible" },
+  { "name": "4-land.jpg", "url": "?shot=land&seed=1", "state": "Final approach to the island runway, gear down" }
+]

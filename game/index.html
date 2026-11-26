@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ember Ridge Airlift</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Monospace', monospace; background: #1a1814; color: #e8dcc8; overflow: hidden; }
+    canvas { display: block; }
+    #ui { position: absolute; inset: 0; pointer-events: none; }
+    #hud { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; line-height: 1.4; pointer-events: none; }
+    .hud-group { background: rgba(20,18,14,0.85); border: 1px solid #4a4030; border-radius: 6px; padding: 6px 10px; min-width: 100px; }
+    .hud-label { color: #a89878; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .hud-value { color: #f0e8d0; font-weight: bold; font-size: 14px; }
+    .hud-bar { height: 6px; background: #2a241c; border-radius: 3px; margin-top: 4px; overflow: hidden; }
+    .hud-bar-fill { height: 100%; transition: width 0.1s; }
+    .hud-bar.fuel .hud-bar-fill { background: linear-gradient(90deg, #e8a030, #f0c840); }
+    .hud-bar.damage .hud-bar-fill { background: linear-gradient(90deg, #802020, #c04040); }
+    #compass { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); width: 320px; height: 40px; background: rgba(20,18,14,0.9); border: 1px solid #4a4030; border-radius: 6px; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+    #compass-tape { position: relative; width: 280px; height: 28px; overflow: hidden; }
+    #compass-marks { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    #compass-needle { position: absolute; top: 50%; left: 50%; width: 2px; height: 20px; background: #f0c840; transform: translate(-50%, -50%); z-index: 2; }
+    #objective { position: absolute; top: 12px; right: 12px; background: rgba(20,18,14,0.9); border: 1px solid #4a4030; border-radius: 6px; padding: 10px 14px; min-width: 220px; max-width: 320px; pointer-events: none; }
+    #objective-title { color: #e8a030; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    #objective-text { color: #f0e8d0; font-size: 13px; line-height: 1.5; }
+    .overlay { position: absolute; inset: 0; background: rgba(10,8,6,0.92); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; z-index: 10; pointer-events: auto; }
+    .overlay.hidden { display: none; }
+    .overlay h1 { font-size: 28px; color: #f0e8d0; text-shadow: 0 0 20px #e8a03080; letter-spacing: 2px; }
+    .overlay h2 { font-size: 20px; color: #e8a030; font-weight: normal; }
+    .overlay p { color: #c8b898; max-width: 500px; text-align: center; line-height: 1.6; font-size: 14px; }
+    .btn { background: linear-gradient(180deg, #3a3024, #282018); border: 1px solid #5a4a38; color: #f0e8d0; padding: 12px 28px; font-size: 14px; font-family: inherit; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
+    .btn:hover { background: linear-gradient(180deg, #4a3c2c, #382c20); border-color: #e8a030; box-shadow: 0 0 12px #e8a03040; }
+    .btn:active { transform: scale(0.98); }
+    .btn.mission { width: 280px; text-align: left; padding: 10px 18px; font-size: 13px; }
+    .btn.mission span { display: block; }
+    .btn.mission .mission-name { color: #e8a030; font-weight: bold; }
+    .btn.mission .mission-desc { color: #a89878; font-size: 12px; margin-top: 2px; }
+    .controls-list { text-align: left; color: #c8b898; font-size: 12px; line-height: 1.55; max-width: 460px; }
+    .controls-list kbd { background: #2a241c; border: 1px solid #4a4030; padding: 2px 8px; border-radius: 3px; margin-right: 8px; min-width: 36px; display: inline-block; text-align: center; color: #e8a030; }
+    .score-final { font-size: 28px; color: #f0c840; text-shadow: 0 0 16px #e8a03080; }
+    .mission-complete { color: #60c060; font-size: 24px; text-shadow: 0 0 16px #60c06080; }
+    .game-over { color: #e06060; font-size: 24px; text-shadow: 0 0 16px #e0606080; }
+    #cockpit-panel { position: absolute; bottom: 0; left: 0; right: 0; height: 180px; background: linear-gradient(180deg, transparent 0%, #0a0806 40%, #100c08 100%); border-top: 2px solid #3a3024; pointer-events: none; display: none; }
+    #cockpit-panel.active { display: block; }
+    .instrument { position: absolute; background: rgba(16,12,8,0.95); border: 1px solid #3a3024; border-radius: 8px; }
+    .instrument.horizon { left: 50%; bottom: 12px; transform: translateX(-50%); width: 200px; height: 160px; }
+    .instrument.altimeter { left: 24px; bottom: 12px; width: 120px; height: 160px; }
+    .instrument.airspeed { right: 24px; bottom: 12px; width: 120px; height: 160px; }
+    .instrument.compass { left: 50%; bottom: 12px; transform: translateX(-50%); width: 240px; height: 60px; display: none; }
+    .instrument.fuel { left: 160px; bottom: 12px; width: 80px; height: 160px; display: none; }
+    .instrument-label { position: absolute; top: 6px; left: 50%; transform: translateX(-50%); color: #a89878; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+    #pause-indicator { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #e8a030; font-size: 32px; text-shadow: 0 0 20px #e8a030; display: none; }
+    #pause-indicator.active { display: block; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div id="ui">
+    <div id="hud">
+      <div class="hud-group">
+        <div class="hud-label">Altitude</div>
+        <div class="hud-value" id="hud-alt">0 ft</div>
+      </div>
+      <div class="hud-group">
+        <div class="hud-label">Speed</div>
+        <div class="hud-value" id="hud-spd">0 kts</div>
+      </div>
+      <div class="hud-group">
+        <div class="hud-label">Heading</div>
+        <div class="hud-value" id="hud-hdg">000°</div>
+      </div>
+      <div class="hud-group">
+        <div class="hud-label">Fuel</div>
+        <div class="hud-value" id="hud-fuel">100%</div>
+        <div class="hud-bar fuel"><div class="hud-bar-fill" id="fuel-bar" style="width: 100%"></div></div>
+      </div>
+      <div class="hud-group">
+        <div class="hud-label">Damage</div>
+        <div class="hud-value" id="hud-dmg">0%</div>
+        <div class="hud-bar damage"><div class="hud-bar-fill" id="dmg-bar" style="width: 0%"></div></div>
+      </div>
+      <div class="hud-group">
+        <div class="hud-label">Score</div>
+        <div class="hud-value" id="hud-score">0</div>
+      </div>
+      <div class="hud-group">
+        <div class="hud-label">Flight time</div>
+        <div class="hud-value" id="hud-timer">0s</div>
+      </div>
+    </div>
+    <div id="compass">
+      <canvas id="compass-canvas" width="320" height="40"></canvas>
+    </div>
+    <div id="objective">
+      <div id="objective-title">Objective</div>
+      <div id="objective-text">Press Start to begin</div>
+    </div>
+    <div id="cockpit-panel">
+      <div class="instrument horizon" id="inst-horizon"><div class="instrument-label">Artificial Horizon</div><canvas id="horizon-canvas" width="200" height="160"></canvas></div>
+      <div class="instrument altimeter" id="inst-alt"><div class="instrument-label">Altimeter</div><canvas id="alt-canvas" width="120" height="160"></canvas></div>
+      <div class="instrument airspeed" id="inst-spd"><div class="instrument-label">Airspeed</div><canvas id="spd-canvas" width="120" height="160"></canvas></div>
+      <div class="instrument compass" id="inst-cmp"><div class="instrument-label">Compass</div><canvas id="cmp-canvas" width="240" height="60"></canvas></div>
+      <div class="instrument fuel" id="inst-fuel"><div class="instrument-label">Fuel</div><canvas id="fuel-canvas" width="80" height="160"></canvas></div>
+    </div>
+    <div id="pause-indicator">PAUSED</div>
+    <div id="title-screen" class="overlay">
+      <h1>EMBER RIDGE AIRLIFT</h1>
+      <h2>Bush Pilot Campaign</h2>
+      <p>A volcanic island awaits. Three sorties: ring run, cargo drop, precision landing.</p>
+      <div style="display: flex; flex-direction: column; gap: 6px; width: 300px;">
+        <button class="btn mission" data-mission="0"><span class="mission-name">Sortie 1: Ring Run</span><span class="mission-desc">Fly through 6 target rings in sequence</span></button>
+        <button class="btn mission" data-mission="1"><span class="mission-name">Sortie 2: Cargo Drop</span><span class="mission-desc">Drop 3 supply crates on marked zones</span></button>
+        <button class="btn mission" data-mission="2"><span class="mission-name">Sortie 3: Island Return</span><span class="mission-desc">Land on the coastal runway, gear down, low sink rate</span></button>
+      </div>
+      <button class="btn" id="btn-start" style="width: 300px; margin-top: 2px; padding: 10px 28px;">Start Selected Mission</button>
+      <div class="controls-list">
+        <strong>Controls:</strong>
+        <kbd>W</kbd>/<kbd>S</kbd> throttle &middot; <kbd>&larr;</kbd><kbd>&rarr;</kbd>/<kbd>A</kbd><kbd>D</kbd> bank &middot; <kbd>&uarr;</kbd><kbd>&darr;</kbd> pitch &middot; <kbd>Space</kbd> drop / flaps &middot; <kbd>C</kbd> camera &middot; <kbd>P</kbd> pause &middot; <kbd>M</kbd> mute &middot; <kbd>R</kbd> restart &middot; mouse steers
+      </div>
+    </div>
+    <div id="mission-complete-screen" class="overlay hidden">
+      <h1 class="mission-complete">MISSION COMPLETE</h1>
+      <div id="mission-score" class="score-final"></div>
+      <button class="btn" id="btn-next">Continue to Next Sortie</button>
+      <button class="btn" id="btn-retry-mission">Retry This Sortie</button>
+    </div>
+    <div id="game-over-screen" class="overlay hidden">
+      <h1 class="game-over">CRASH</h1>
+      <div id="crash-cause" style="color: #e06060; font-size: 16px; margin-bottom: 8px;"></div>
+      <div id="final-score" class="score-final"></div>
+      <button class="btn" id="btn-restart">Fly Again</button>
+      <button class="btn" id="btn-title">Return to Briefing</button>
+    </div>
+    <div id="win-screen" class="overlay hidden">
+      <h1 style="color: #60c060; text-shadow: 0 0 24px #60c06080;">CAMPAIGN COMPLETE</h1>
+      <p>All three sorties flown. The village is supplied, the rings conquered, the runway mastered.</p>
+      <div id="total-score" class="score-final"></div>
+      <button class="btn" id="btn-play-again">Fly Campaign Again</button>
+    </div>
+  </div>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
